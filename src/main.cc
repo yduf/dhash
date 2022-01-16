@@ -3,14 +3,22 @@
  */
 
 #include <cstdint>
+#include <bitset>
+#include <iostream>
+
 #include <vips/vips8>
+#include <nlohmann/json.hpp>
 
-
+// for convenience
+using json = nlohmann::json;
 using namespace vips;
-    int h = 11, w = 6;
+using namespace std;
 
 
-VImage reduce( const char* name ) {
+// load & reduce image to w,h and convert to b&W
+VImage reduce( const char* name,
+               int w, int h  
+    ) {
     VImage in = VImage::new_from_file (name,
                                        VImage::option ()
                                        //   ->set ("access", VIPS_ACCESS_SEQUENTIAL)
@@ -28,10 +36,33 @@ VImage reduce( const char* name ) {
     return reduced;
 }
 
+uint64_t dhash( VImage hash ) {
+    auto w = hash.width();
+    auto h = hash.height();
+    cout << "w: " << w << " h: " << h << "band: " << hash.bands() << "\n";
+
+    size_t size;
+    auto* data = (uint8_t*) hash[0].write_to_memory( &size);
+    uint64_t hash_value = 0;
+    auto* p = data;
+    for (int j = 0; j < h; j++) {
+        for (int i = 0; i < w; i++) {
+            hash_value <<= 1;
+            //hash_value |= hash(i, j)[0] > 0 ? 1 : 0;    // 1001101100111001101011010110000010011000011000110000111
+            hash_value |= *p++ > 0 ? 1 : 0;               // 1001101100111001101011010110000010011000011000110000111
+        }
+    }
+
+    g_free( data);
+
+    return hash_value;
+}
 
 int
 main (int argc, char **argv)
 { 
+  bool debug = false;
+
   if (VIPS_INIT (argv[0])) 
     vips_error_exit (NULL);
 
@@ -44,35 +75,32 @@ main (int argc, char **argv)
   int height = atoi (argv[i++]);
 
   for( const char* name=argv[i++];i<=argc;name=argv[i++]) {
+    int h = 11, w = 6;
 
-VImage reduced = reduce( name );
-    reduced.write_to_file ("reduced.pgm");
+    VImage reduced = reduce( name, w, h );
+    if( debug) reduced.write_to_file ("reduced.pgm");
     
     VImage A = reduced.crop( 0, 0, w - 1, h );
     VImage B = reduced.crop( 1, 0, w - 1, h );
 
-    //A.write_to_file ("A.pgm");
-    //B.write_to_file ("B.pgm");
+    if( debug) A.write_to_file ("A.pgm");
+    if( debug) B.write_to_file ("B.pgm");
 
     VImage diff = A < B; 
-    diff.write_to_file ("diff.pgm");
+    if( debug) diff.write_to_file ("diff.pgm");
 
-    //printf ("%d %s\n", in.width (), name);
-    uint8_t* p = (uint8_t*) diff.data();
+    auto hash = dhash( diff );
+    json j = {
+        {"hash", hash},
+        {"rot", rot},
+        {"width", diff.width() },
+        {"height", diff.height() },
+        {"file", name}
+    };
 
-    for( int i = 0; i < 11*5; ++i) {
-        printf ("%d ", p[i]);
-    }
-    printf ("\n");
+    std::cout << j << "\n";
 
-
-      for( int y = 0; y < 11; ++y) {
-    for( int x = 0; x < 5; ++x) {
-        std::vector<double> v = diff(x,y);
-        printf ("%f ", v[0]);
-      }
-    printf ("\n");
-    }
+    std::cout << std::bitset<55>( hash) << "\n";
   }
 
 

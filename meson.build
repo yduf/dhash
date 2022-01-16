@@ -9,4 +9,7 @@ message('registered sources @0@'.format(sources))
 
 vips   = dependency('vips-cpp ', version:'>=8.12.1')
 
-executable('dhash', sources, dependencies: [ vips ])
+# meson wrap install nlohmann_json
+json = dependency('nlohmann_json', required: true)
+
+executable('dhash', sources, dependencies: [ vips, json])
