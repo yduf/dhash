@@ -41,10 +41,12 @@ uint64_t dhash( VImage hash ) {
     auto h = hash.height();
     cout << "w: " << w << " h: " << h << "band: " << hash.bands() << "\n";
 
-    size_t size;
-    auto* data = (uint8_t*) hash[0].write_to_memory( &size);
+    VImage cache = VImage::new_memory();
+    hash[0].write( cache);
+    auto* p = (uint8_t*) cache.data();
+
     uint64_t hash_value = 0;
-    auto* p = data;
+
     for (int j = 0; j < h; j++) {
         for (int i = 0; i < w; i++) {
             hash_value <<= 1;
@@ -52,8 +54,6 @@ uint64_t dhash( VImage hash ) {
             hash_value |= *p++ > 0 ? 1 : 0;               // 1001101100111001101011010110000010011000011000110000111
         }
     }
-
-    g_free( data);
 
     return hash_value;
 }
