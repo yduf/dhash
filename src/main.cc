@@ -2,9 +2,32 @@
  *      g++ -g -Wall example.cc `pkg-config vips-cpp --cflags --libs`
  */
 
+#include <cstdint>
 #include <vips/vips8>
 
+
 using namespace vips;
+    int h = 11, w = 6;
+
+
+VImage reduce( const char* name ) {
+    VImage in = VImage::new_from_file (name,
+                                       VImage::option ()
+                                       //   ->set ("access", VIPS_ACCESS_SEQUENTIAL)
+                                      );
+
+    VImage reduced = in
+                    .reducev( in.height()/ h)
+                    .reduceh( in.width() / w)
+                    .colourspace(VIPS_INTERPRETATION_sRGB, 
+                                 VImage::option ()
+                                    ->set ("source_space", VIPS_INTERPRETATION_B_W)
+                                  )
+                    ;
+
+    return reduced;
+}
+
 
 int
 main (int argc, char **argv)
@@ -22,19 +45,34 @@ main (int argc, char **argv)
 
   for( const char* name=argv[i++];i<=argc;name=argv[i++]) {
 
-    VImage in = VImage::new_from_file (name,
-                                        VImage::option ()->set ("access", VIPS_ACCESS_SEQUENTIAL))
-                                        ;
+VImage reduced = reduce( name );
+    reduced.write_to_file ("reduced.pgm");
+    
+    VImage A = reduced.crop( 0, 0, w - 1, h );
+    VImage B = reduced.crop( 1, 0, w - 1, h );
 
-    VImage reduced =  in.reducev( in.height()/ 21)
-                    .reduceh( in.width() / 12)
-                    .colourspace(VIPS_INTERPRETATION_sRGB, VImage::option ()->set ("source_space", VIPS_INTERPRETATION_B_W));
+    //A.write_to_file ("A.pgm");
+    //B.write_to_file ("B.pgm");
+
+    VImage diff = A < B; 
+    diff.write_to_file ("diff.pgm");
+
+    //printf ("%d %s\n", in.width (), name);
+    uint8_t* p = (uint8_t*) diff.data();
+
+    for( int i = 0; i < 11*5; ++i) {
+        printf ("%d ", p[i]);
+    }
+    printf ("\n");
 
 
-                    reduced.write_to_file ("reduced.ppm");
-                    ;
-
-    printf ("%d %s\n", in.width (), name);
+      for( int y = 0; y < 11; ++y) {
+    for( int x = 0; x < 5; ++x) {
+        std::vector<double> v = diff(x,y);
+        printf ("%f ", v[0]);
+      }
+    printf ("\n");
+    }
   }
 
 
