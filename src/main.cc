@@ -15,14 +15,19 @@ using namespace vips;
 using namespace std;
 
 
+struct dim_t {
+  int w;
+  int h;
+  int rot90;
+};
+
 // load & reduce image to w,h and convert to b&W
-VImage reduce( const char* name,
-               int w, int h  
+VImage reduce( VImage in,
+               dim_t k  
     ) {
-    VImage in = VImage::new_from_file (name,
-                                       VImage::option ()
-                                       //   ->set ("access", VIPS_ACCESS_SEQUENTIAL)
-                                      );
+
+    int h = k.h, w = k.w;
+    if( k.rot90) swap( h, w);
 
     VImage reduced = in
                     .reducev( in.height()/ h)
@@ -33,17 +38,17 @@ VImage reduce( const char* name,
                                   )
                     ;
 
+    if( k.rot90) reduced = reduced.rot90();
+
     return reduced;
 }
 
 uint64_t dhash( VImage hash ) {
     auto w = hash.width();
     auto h = hash.height();
-    cout << "w: " << w << " h: " << h << "band: " << hash.bands() << "\n";
-
-    VImage cache = VImage::new_memory();
-    hash[0].write( cache);
-    auto* p = (uint8_t*) cache.data();
+    //cout << "w: " << w << " h: " << h << "band: " << hash.bands() << "\n";
+               
+    auto* p = (uint8_t*) hash[0].data();          // this trigger the pipeline and take 20ms
 
     uint64_t hash_value = 0;
 
@@ -58,10 +63,40 @@ uint64_t dhash( VImage hash ) {
     return hash_value;
 }
 
+
+
+dim_t key( VImage from) {
+  dim_t res = {};
+
+  double r = (double) from.width() / from.height();
+
+  if( r < 1.0) {
+    res.rot90 = true;
+    r = 1./r;
+  }
+
+  // find closest form factor
+  std::vector<int> v = { 10, 13, 17};
+  int closest = 17;
+
+  // return matching hash mask
+  std::map<int, dim_t> m { {10, { 8, 8, 0}},
+                           {13, { 9, 7, 0}},
+                           {17, { 10, 6, 0}},
+                       };
+  auto k = m[closest];
+  res.w = k.w + 1;
+  res.h = k.h;
+
+  return res;
+
+}
+
+
 int
 main (int argc, char **argv)
 { 
-  bool debug = false;
+  bool debug = true;
 
   if (VIPS_INIT (argv[0])) 
     vips_error_exit (NULL);
@@ -75,9 +110,12 @@ main (int argc, char **argv)
   int height = atoi (argv[i++]);
 
   for( const char* name=argv[i++];i<=argc;name=argv[i++]) {
-    int h = 11, w = 6;
 
-    VImage reduced = reduce( name, w, h );
+    VImage in = VImage::new_from_file (name );
+    auto k = key( in);
+    int h = k.h, w = k.w;
+
+    VImage reduced = reduce( in, k );
     if( debug) reduced.write_to_file ("reduced.pgm");
     
     VImage A = reduced.crop( 0, 0, w - 1, h );
@@ -92,7 +130,7 @@ main (int argc, char **argv)
     auto hash = dhash( diff );
     json j = {
         {"hash", hash},
-        {"rot", rot},
+        {"rot90", k.rot90},
         {"width", diff.width() },
         {"height", diff.height() },
         {"file", name}
@@ -100,7 +138,7 @@ main (int argc, char **argv)
 
     std::cout << j << "\n";
 
-    std::cout << std::bitset<55>( hash) << "\n";
+    std::cout << std::bitset<64>( hash) << "\n";
   }
 
 
