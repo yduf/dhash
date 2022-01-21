@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <bitset>
 #include <iostream>
+#include <map>
 
 #include <vips/vips8>
 #include <nlohmann/json.hpp>
@@ -14,7 +15,6 @@ using json = nlohmann::json;
 using namespace vips;
 using namespace std;
 
-
 struct dim_t {
   int w;
   int h;
@@ -22,16 +22,25 @@ struct dim_t {
 };
 
 // load & reduce image to w,h and convert to b&W
-VImage reduce( VImage in,
-               dim_t k  
+VImage reduce( const char* name,
+               const dim_t& k,
+               bool debug = false
     ) {
 
     int h = k.h, w = k.w;
     if( k.rot90) swap( h, w);
 
-    VImage reduced = in
-                    .reducev( in.height()/ h)
-                    .reduceh( in.width() / w)
+    // first stage thumbnail
+    VImage thumb = VImage::thumbnail( name, 8*w);
+
+    VImage cached = VImage::new_memory();
+    thumb.write( cached);
+
+    if( debug) cached.write_to_file ("thumb.ppm");
+
+    VImage reduced = cached
+                    .reducev( (double) cached.height()/ h)
+                    .reduceh( (double) cached.width() / w)
                     .colourspace(VIPS_INTERPRETATION_sRGB, 
                                  VImage::option ()
                                     ->set ("source_space", VIPS_INTERPRETATION_B_W)
@@ -55,8 +64,7 @@ uint64_t dhash( VImage hash ) {
     for (int j = 0; j < h; j++) {
         for (int i = 0; i < w; i++) {
             hash_value <<= 1;
-            //hash_value |= hash(i, j)[0] > 0 ? 1 : 0;    // 1001101100111001101011010110000010011000011000110000111
-            hash_value |= *p++ > 0 ? 1 : 0;               // 1001101100111001101011010110000010011000011000110000111
+            hash_value |= *p++ > 0 ? 1 : 0;
         }
     }
 
@@ -64,6 +72,44 @@ uint64_t dhash( VImage hash ) {
 }
 
 
+
+struct Comp {
+  bool operator()( const int& a, std::pair<const int, dim_t>& b) const {
+    cout << "a: " << a << " b: " << b.first << " "  << (a < b.first) <<  "\n";
+    return a < b.first;
+  }
+
+  bool operator()( std::pair<const int, dim_t>& a, const int& b) const {
+    cout << "a: " << a.first << " b: " << b << " " << (a.first < b) <<  "\n";
+    return a.first < b;
+  }
+};
+
+template<class T>
+auto bound( int pos, map<int,T>& m) {
+
+  auto lb = m.lower_bound( pos );
+  std::pair<typename map<int,T>::iterator, typename map<int,T>::iterator> res;
+  res.first = lb;
+  res.second = lb;
+
+  if( lb == m.end() && m.size() > 0) {
+    // not found, we want to have the last element
+    res.first = std::prev( m.end());
+  } else if (lb == m.begin()) {
+    // or first element
+  } else {
+    if (lb->first == pos)
+      // value found in map
+      ;
+    else {
+      // value not found in map, we want it to be bounded by existing value
+        res.first = std::prev(lb);
+    }
+  }
+
+  return res;
+}
 
 dim_t key( VImage from) {
   dim_t res = {};
@@ -75,18 +121,32 @@ dim_t key( VImage from) {
     r = 1./r;
   }
 
-  // find closest form factor
-  std::vector<int> v = { 10, 13, 17};
-  int closest = 17;
+  int ratio = r*100+0.5;
+  cout << "ratio: " << ratio << "\n";
 
-  // return matching hash mask
-  std::map<int, dim_t> m { {10, { 8, 8, 0}},
-                           {13, { 9, 7, 0}},
-                           {17, { 10, 6, 0}},
+  // return matching hash mask that fits 64bits
+  std::map<int, dim_t> m { {100, { 8, 8, 0}},
+                           {130, { 9, 7, 0}},
+                           {170, { 10, 6, 0}},
                        };
+
+  auto p2 = bound( ratio, m);
+  std::cout << "bound: [" << p2.first->first << "," << p2.second->first << "]\n";
+
+  // find closest form factor
+  int closest = p2.first->first;
+  if( p2.second != m.end() 
+      && abs( ratio - closest) > abs( p2.second->first - ratio))
+    closest = p2.second->first;
+
   auto k = m[closest];
   res.w = k.w + 1;
   res.h = k.h;
+  cout << "closest: " << closest 
+       << " , w: "  << res.w 
+       << ", h: "   << res.h 
+       << " , rot90: " << res.rot90 
+       << "\n";
 
   return res;
 
@@ -96,28 +156,25 @@ dim_t key( VImage from) {
 int
 main (int argc, char **argv)
 { 
-  bool debug = true;
+  bool debug = false;
 
   if (VIPS_INIT (argv[0])) 
     vips_error_exit (NULL);
 
-  if (argc < 3+1)
-    vips_error_exit ("usage: %s 0/1 w h file* ", argv[0]);
+  if (argc < 1+1)
+    vips_error_exit ("usage: %s file* ", argv[0]);
 
   int i = 1;
-  int rot = atoi (argv[i++]);
-  int width = atoi (argv[i++]);
-  int height = atoi (argv[i++]);
-
   for( const char* name=argv[i++];i<=argc;name=argv[i++]) {
+    cout << "file: " << name << "\n";
 
     VImage in = VImage::new_from_file (name );
     auto k = key( in);
-    int h = k.h, w = k.w;
 
-    VImage reduced = reduce( in, k );
+    VImage reduced = reduce( name, k, debug );
     if( debug) reduced.write_to_file ("reduced.pgm");
     
+    int h = k.h, w = k.w;
     VImage A = reduced.crop( 0, 0, w - 1, h );
     VImage B = reduced.crop( 1, 0, w - 1, h );
 
