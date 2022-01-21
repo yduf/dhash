@@ -76,20 +76,7 @@ uint64_t dhash( VImage hash ) {
     return hash_value;
 }
 
-
-
-struct Comp {
-  bool operator()( const int& a, std::pair<const int, dim_t>& b) const {
-    cout << "a: " << a << " b: " << b.first << " "  << (a < b.first) <<  "\n";
-    return a < b.first;
-  }
-
-  bool operator()( std::pair<const int, dim_t>& a, const int& b) const {
-    cout << "a: " << a.first << " b: " << b << " " << (a.first < b) <<  "\n";
-    return a.first < b;
-  }
-};
-
+// find closes bound in map for given value
 template<class T>
 auto bound( int pos, map<int,T>& m) {
 
@@ -116,6 +103,7 @@ auto bound( int pos, map<int,T>& m) {
   return res;
 }
 
+// find key dimension that are the closest to image aspect ratio
 dim_t key( VImage from) {
   dim_t res = {};
 
