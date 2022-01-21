@@ -15,6 +15,8 @@ using json = nlohmann::json;
 using namespace vips;
 using namespace std;
 
+constexpr bool debug = false;
+
 struct dim_t {
   int w;
   int h;
@@ -31,7 +33,12 @@ VImage reduce( const char* name,
     if( k.rot90) swap( h, w);
 
     // first stage thumbnail
-    VImage thumb = VImage::thumbnail( name, 8*w);
+    VImage thumb = VImage::thumbnail( name, w,
+                                      VImage::option()
+                                        ->set( "size", VIPS_SIZE_FORCE)
+                                        ->set( "height", h)
+                                        ->set( "no_rotate", true)
+                                    );
 
     VImage cached = VImage::new_memory();
     thumb.write( cached);
@@ -39,10 +46,8 @@ VImage reduce( const char* name,
     if( debug) cached.write_to_file ("thumb.ppm");
 
     VImage reduced = cached
-                    .reducev( (double) cached.height()/ h)
-                    .reduceh( (double) cached.width() / w)
-                    .colourspace(VIPS_INTERPRETATION_sRGB, 
-                                 VImage::option ()
+                       .colourspace(VIPS_INTERPRETATION_sRGB, 
+                                 VImage::option()
                                     ->set ("source_space", VIPS_INTERPRETATION_B_W)
                                   )
                     ;
@@ -156,7 +161,6 @@ dim_t key( VImage from) {
 int
 main (int argc, char **argv)
 { 
-  bool debug = false;
 
   if (VIPS_INIT (argv[0])) 
     vips_error_exit (NULL);
