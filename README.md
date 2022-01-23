@@ -12,3 +12,13 @@ Based on idea from [article](http://www.hackerfactor.com/blog/?/archives/529-Kin
 - image formats are those supported by [libvips](https://www.libvips.org/)
 - output results a one line json for easier script integration
 
+## Compiling
+
+Install dependencies:
+- [libvips](https://www.libvips.org/)
+
+{% highlight bash %}
+meson build .
+cd build
+meson compile
+{% endhighlight %}

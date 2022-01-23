@@ -115,7 +115,8 @@ dim_t key( VImage from) {
   }
 
   int ratio = r*100+0.5;
-  cout << "ratio: " << ratio << "\n";
+  if( debug)
+    cerr << "ratio: " << ratio << "\n";
 
   // return matching hash mask that fits 64bits
   std::map<int, dim_t> m { {100, { 8, 8, 0}},
@@ -124,7 +125,8 @@ dim_t key( VImage from) {
                        };
 
   auto p2 = bound( ratio, m);
-  std::cout << "bound: [" << p2.first->first << "," << p2.second->first << "]\n";
+  if( debug)
+    std::cerr << "bound: [" << p2.first->first << "," << p2.second->first << "]\n";
 
   // find closest form factor
   int closest = p2.first->first;
@@ -135,7 +137,9 @@ dim_t key( VImage from) {
   auto k = m[closest];
   res.w = k.w + 1;
   res.h = k.h;
-  cout << "closest: " << closest 
+
+  if( debug)
+  cerr << "closest: " << closest 
        << " , w: "  << res.w 
        << ", h: "   << res.h 
        << " , rot90: " << res.rot90 
@@ -158,7 +162,8 @@ main (int argc, char **argv)
 
   int i = 1;
   for( const char* name=argv[i++];i<=argc;name=argv[i++]) {
-    cout << "file: " << name << "\n";
+  try {
+    cerr << "file: " << name << "\n";
 
     VImage in = VImage::new_from_file (name );
     auto k = key( in);
@@ -177,6 +182,8 @@ main (int argc, char **argv)
     if( debug) diff.write_to_file ("diff.pgm");
 
     auto hash = dhash( diff );
+
+    // JSON output
     json j = {
         {"hash", hash},
         {"rot90", k.rot90},
@@ -187,7 +194,22 @@ main (int argc, char **argv)
 
     std::cout << j << "\n";
 
-    std::cout << std::bitset<64>( hash) << "\n";
+    if( debug)
+      std::cerr << std::bitset<64>( hash) << "\n";
+  } catch (vips::VError& e) {
+    std::cerr << name << "\n - error: " << e.what() << "\n";
+
+    // JSON output
+    json j = {
+        {"hash", 0},
+        {"rot90",0},
+        {"width", 0 },
+        {"height", 0 },
+        {"file", name}
+    };
+
+    std::cout << j << "\n";
+  }
   }
 
 
