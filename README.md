@@ -7,7 +7,7 @@ Based on idea from [article](http://www.hackerfactor.com/blog/?/archives/529-Kin
 ## Behavior
 - try to keep aspect ratio when computing hash
 - use one of these 3 ratio that fit into 64bits: 8x8, 9x7, 10x6
-- rotate image by 90 when needed to always fit into these ratios.
+- rotate image by 90 when needed, to always fit into these ratios.
 - use libvips thumbnail for fast reduction
 - image formats are those supported by [libvips](https://www.libvips.org/)
 - output results a one line json for easier script integration
@@ -17,8 +17,14 @@ Based on idea from [article](http://www.hackerfactor.com/blog/?/archives/529-Kin
 Install dependencies:
 - [libvips](https://www.libvips.org/)
 
-{% highlight bash %}
+```bash
 meson build .
 cd build
 meson compile
-{% endhighlight %}
+```
+
+## Usage
+```bash
+$ dhash ~/Pictures/*.webp
+{"file":"/home/yves/Pictures/6ihqil3250u91.webp","hash":4413131122559126504,"height":7,"rot90":1,"width":9}
+```

@@ -163,7 +163,7 @@ main (int argc, char **argv)
   int i = 1;
   for( const char* name=argv[i++];i<=argc;name=argv[i++]) {
   try {
-    cerr << "file: " << name << "\n";
+    cerr << "Processing: " << name << "\n";
 
     VImage in = VImage::new_from_file (name );
     auto k = key( in);
@@ -205,7 +205,8 @@ main (int argc, char **argv)
         {"rot90",0},
         {"width", 0 },
         {"height", 0 },
-        {"file", name}
+        {"file", name},
+        {"error", e.what() }
     };
 
     std::cout << j << "\n";
